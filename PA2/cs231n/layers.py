@@ -1,5 +1,6 @@
 from builtins import range
 import numpy as np
+from numpy.core.numeric import zeros_like
 
 
 def affine_forward(x, w, b):
@@ -392,7 +393,28 @@ def conv_forward_naive(x, w, b, conv_param):
     # TODO: Implement the convolutional forward pass.                         #
     # Hint: you can use the function np.pad for padding.                      #
     ###########################################################################
-    pass
+    N,C,H,W = x.shape
+    F,C,HH,WW = w.shape
+    stride = conv_param["stride"]
+    pad = conv_param["pad"]
+    H_ = 1 + (H + 2 * pad - HH) // stride
+    W_ = 1 + (W + 2 * pad - WW) // stride
+    out = np.zeros((N,F,H_,W_))
+    for n in range(N):
+      for f in range(F):
+        for i in range(H_):
+          for j in range(W_):
+            x1 = i*stride - pad
+            y1 = j*stride - pad
+            data = 0
+            for k in range(HH):
+              if (x1+k<0 or x1+k>=H):
+                continue
+              for l in range(WW):
+                if (y1+l<0 or y1+l>=W):
+                  continue
+                data += np.sum(x[n,:,x1+k,y1+l]*w[f,:,k,l])
+            out[n,f,i,j] = data + b[f]
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -417,7 +439,31 @@ def conv_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the convolutional backward pass.                        #
     ###########################################################################
-    pass
+    x,w,b,conv_param = cache
+    N,C,H,W = x.shape
+    F,C,HH,WW = w.shape
+    stride = conv_param["stride"]
+    pad = conv_param["pad"]
+    H_ = 1 + (H + 2 * pad - HH) // stride
+    W_ = 1 + (W + 2 * pad - WW) // stride
+    dw = np.zeros_like(w)
+    dx = np.zeros_like(x)
+    db = np.zeros_like(b)
+    for n in range(N):
+      for f in range(F):
+        for i in range(H_):
+          for j in range(W_):
+            x1 = i*stride - pad
+            y1 = j*stride - pad
+            for k in range(HH):
+              if (x1+k<0 or x1+k>=H):
+                continue
+              for l in range(WW):
+                if (y1+l<0 or y1+l>=W):
+                  continue
+                dw[f,:,k,l] += dout[n,f,i,j] * x[n,:,x1+k,y1+l]
+                dx[n,:,x1+k,y1+l] += dout[n,f,i,j] * w[f,:,k,l]
+            db[f] += dout[n,f,i,j]
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -443,7 +489,16 @@ def max_pool_forward_naive(x, pool_param):
     ###########################################################################
     # TODO: Implement the max pooling forward pass                            #
     ###########################################################################
-    pass
+    N,C,H,W = x.shape
+    PH, PW, stride = pool_param["pool_height"], pool_param["pool_width"], pool_param["stride"]
+    H_ = 1 + (H-PH) // stride
+    W_ = 1 + (W-PW) // stride
+    out = np.zeros((N,C,H_,W_))
+    for i in range(H_):
+      for j in range(W_):
+        x1 = i*stride
+        y1 = j*stride
+        out[:,:,i,j] = np.max(x[:,:,x1:x1+PH,y1:y1+PW],axis=(2,3))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -466,7 +521,20 @@ def max_pool_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the max pooling backward pass                           #
     ###########################################################################
-    pass
+    x, pool_param = cache
+    dx = zeros_like(x)
+    N,C,H,W = x.shape
+    PH, PW, stride = pool_param["pool_height"], pool_param["pool_width"], pool_param["stride"]
+    H_ = 1 + (H-PH) // stride
+    W_ = 1 + (W-PW) // stride
+    for i in range(H_):
+      for j in range(W_):
+        x1 = i*stride
+        y1 = j*stride
+        mx = np.max(x[:,:,x1:x1+PH,y1:y1+PW],axis=(2,3))
+        for k in range(PH):
+          for l in range(PW):
+            dx[:,:,x1+k,y1+l] += np.where(x[:,:,x1+k,y1+l]==mx,dout[:,:,i,j],0)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -504,7 +572,10 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     # version of batch normalization defined above. Your implementation should#
     # be very short; ours is less than five lines.                            #
     ###########################################################################
-    pass
+    N,C,H,W = x.shape
+    x_ = np.transpose(x,(0,2,3,1)).reshape(N*H*W,C)
+    out,cache = batchnorm_forward(x_, gamma, beta, bn_param)
+    out = out.reshape((N,H,W,C)).transpose(0,3,1,2)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -534,7 +605,10 @@ def spatial_batchnorm_backward(dout, cache):
     # version of batch normalization defined above. Your implementation should#
     # be very short; ours is less than five lines.                            #
     ###########################################################################
-    pass
+    N,C,H,W = dout.shape
+    dout_ = np.transpose(dout,(0,2,3,1)).reshape(N*H*W,C)
+    dx, dgamma, dbeta = batchnorm_backward_alt(dout_, cache)
+    dx = dx.reshape((N,H,W,C)).transpose(0,3,1,2)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
