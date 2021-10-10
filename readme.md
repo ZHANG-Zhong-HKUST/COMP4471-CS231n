@@ -12,3 +12,10 @@
 3. Softmax
 4. Two-Layer Nerual Network
 5. Higher Level Representations
+
+### PA2:
+1. Fully-conneccted Neural Network
+2. Batch Normalization
+3. Dropout
+4. Convolutional Networks
+5. PyTorch / TensorFlow on CIFAR-10
