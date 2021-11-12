@@ -5,7 +5,8 @@ from builtins import range
 import urllib.request, urllib.error, urllib.parse, os, tempfile
 
 import numpy as np
-from scipy.misc import imread, imresize
+# from scipy.misc import imread # this is deprecated
+from imageio import imread # replace with this
 
 """
 Utility functions used for viewing and processing images.
@@ -60,10 +61,11 @@ def image_from_url(url):
     """
     try:
         f = urllib.request.urlopen(url)
-        _, fname = tempfile.mkstemp()
+        fd, fname = tempfile.mkstemp()
         with open(fname, 'wb') as ff:
             ff.write(f.read())
         img = imread(fname)
+        os.close(fd)
         os.remove(fname)
         return img
     except urllib.error.URLError as e:
