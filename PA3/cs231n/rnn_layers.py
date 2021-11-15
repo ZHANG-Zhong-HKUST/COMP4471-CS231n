@@ -254,7 +254,15 @@ def lstm_step_forward(x, prev_h, prev_c, Wx, Wh, b):
     # TODO: Implement the forward pass for a single timestep of an LSTM.        #
     # You may want to use the numerically stable sigmoid implementation above.  #
     #############################################################################
-    pass
+    H = prev_h.shape[1]
+    A = np.dot(x, Wx) + np.dot(prev_h, Wh) + b
+    i = sigmoid(A[:,:H])
+    f = sigmoid(A[:,H:H+H])
+    o = sigmoid(A[:,H+H:H+H+H])
+    g = np.tanh(A[:,H+H+H:])
+    next_c = f * prev_c + i * g
+    next_h = o * np.tanh(next_c)
+    cache = (x,Wx,Wh,i,f,o,g,next_c,prev_c,prev_h)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -279,14 +287,32 @@ def lstm_step_backward(dnext_h, dnext_c, cache):
     - dWh: Gradient of hidden-to-hidden weights, of shape (H, 4H)
     - db: Gradient of biases, of shape (4H,)
     """
-    dx, dh, dc, dWx, dWh, db = None, None, None, None, None, None
+    dx, dprev_h, dprev_c, dWx, dWh, db = None, None, None, None, None, None
     #############################################################################
     # TODO: Implement the backward pass for a single timestep of an LSTM.       #
     #                                                                           #
     # HINT: For sigmoid and tanh you can compute local derivatives in terms of  #
     # the output value from the nonlinearity.                                   #
     #############################################################################
-    pass
+    x,Wx,Wh,i,f,o,g,next_c,prev_c,prev_h = cache
+
+    tnext_c = np.tanh(next_c)
+    
+    dprev_c = f * (dnext_c + dnext_h * o * (1-tnext_c**2))
+    
+    dnc = dnext_c + dnext_h * o * (1-tnext_c**2)
+
+    di = dnc * g * i * (1-i)
+    df = dnc * prev_c * f * (1-f)
+    do = dnext_h * tnext_c * o * (1-o)
+    dg = dnc * i * (1 - g**2)
+    dA = np.concatenate((di,df,do,dg),axis=1)
+
+    db = np.sum(dA,axis=0)
+    dx = np.dot(dA, Wx.T)
+    dprev_h = np.dot(dA, Wh.T)
+    dWx = np.dot(x.T, dA)
+    dWh = np.dot(prev_h.T, dA)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -321,7 +347,16 @@ def lstm_forward(x, h0, Wx, Wh, b):
     # TODO: Implement the forward pass for an LSTM over an entire timeseries.   #
     # You should use the lstm_step_forward function that you just defined.      #
     #############################################################################
-    pass
+    c_last = np.zeros(h0.shape)
+    T = x.shape[1]
+    h_last = h0
+    h = []
+    cache = []
+    for t in range(T):
+        h_last, c_last, cache_s = lstm_step_forward(x[:,t,:], h_last, c_last, Wx, Wh, b)
+        h.append(h_last)
+        cache.append(cache_s)
+    h = np.transpose(h, (1,0,2))
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -349,7 +384,20 @@ def lstm_backward(dh, cache):
     # TODO: Implement the backward pass for an LSTM over an entire timeseries.  #
     # You should use the lstm_step_backward function that you just defined.     #
     #############################################################################
-    pass
+    T = dh.shape[1]
+    dh0 = dh[:,T-1,:]
+    dc = np.zeros(dh0.shape)
+    dx_, dh0, dc, dWx, dWh, db = lstm_step_backward(dh0, dc, cache[T-1])
+    dx = [dx_]
+    for t in reversed(range(T-1)):
+        dx_, dh0, dc, dWx_, dWh_, db_ = lstm_step_backward(dh0 + dh[:,t,:], dc ,cache[t])
+        db = db + db_
+        dWx = dWx + dWx_
+        dWh = dWh + dWh_
+        dx.append(dx_)
+
+    dx = np.transpose(dx, (1,0,2))
+    dx = np.flip(dx, axis=1)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
